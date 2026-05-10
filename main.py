@@ -178,7 +178,7 @@ class App(ctk.CTk):
                 "17. Morph Erosion", "18. Morph Dilation", "19. Morph Opening", "20. Morph Closing",
                 "21. Aritmetik: Toplama", "22. Aritmetik: Çıkarma", "23. Aritmetik: Çarpma",
                 "24. Aritmetik: AND", "25. Aritmetik: OR", "26. Aritmetik: XOR",
-                "27. Adaptif Eşikleme", "28. Çift Eşikleme", "30. PLAKA OKUMA (LPR)"
+                "27. Adaptif Eşikleme", "28. Çift Eşikleme"
             ]
         }
 
@@ -337,11 +337,6 @@ class App(ctk.CTk):
             elif "29. Görüntü Kırpma" in choice:
                 h, w = mat.shape[:2]
                 result = ImageProcessor.crop_image(mat, w//4, h//4, w//2, h//2)
-            elif "30. PLAKA OKUMA" in choice:
-                self.after(0, lambda: mb.showinfo("Bilgi", "Plaka okuma henuz uygulanmadi."))
-                self.after(0, lambda: self._finish_filter("Islem uygulanmadi."))
-                return
-
             if result is not None:
                 self.current_image_matrix = result.astype(np.uint8)
             self.after(0, lambda: self._finish_filter("Başarıyla uygulandı ✓"))
