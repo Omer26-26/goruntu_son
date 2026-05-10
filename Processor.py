@@ -155,15 +155,13 @@ class ImageProcessor:
 
         pad = kernel_size // 2
 
-        output = np.zeros_like(image)
+        output = np.zeros((height, width), dtype=image.dtype)
 
         padded = np.pad(image, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
 
-        for i in range(height): 
-            for j in range(width):
-                window = padded[i : i + kernel_size, j : j + kernel_size]
-                # Pencerede tek bir 255 (beyaz) bile varsa bu piksel 255 olur → beyaz yayılır
-                output[i, j] = np.max(window)
+        for ki in range(kernel_size):
+            for kj in range(kernel_size):
+                output = np.maximum(output, padded[ki:ki + height, kj:kj + width])
 
         return output.astype(np.uint8)
     
@@ -179,16 +177,13 @@ class ImageProcessor:
 
         pad = kernel_size // 2
 
-        output = np.zeros_like(image)
+        output = np.full((height, width), 255, dtype=image.dtype)
 
         padded = np.pad(image, ((pad, pad), (pad, pad)), mode='constant', constant_values=255)
 
-        for i in range(height): 
-            for j in range(width):
-                window = padded[i : i + kernel_size, j : j + kernel_size]
-
-            # Pencerede tek bir 0 (siyah) bile varsa bu piksel 0 olur → beyaz erir
-                output[i, j] = np.min(window)
+        for ki in range(kernel_size):
+            for kj in range(kernel_size):
+                output = np.minimum(output, padded[ki:ki + height, kj:kj + width])
 
         return output.astype(np.uint8)
     
@@ -295,6 +290,8 @@ class ImageProcessor:
         # Mali - Adaptif eşikleme manuel olarak piksel komşuluk ortalamasıyla uygulanır.
         if block_size % 2 == 0:
             block_size += 1
+        if block_size < 3:
+            block_size = 3
 
         if image.ndim == 3:
             gray = ImageProcessor.turn_gray(image)
@@ -310,19 +307,44 @@ class ImageProcessor:
             mode="constant",
             constant_values=0,
         )
-        output = np.zeros((height, width), dtype=np.uint8)
+        total = np.zeros((height, width), dtype=np.float64)
 
-        for i in range(height):
-            for j in range(width):
-                total = 0.0
-                for ki in range(block_size):
-                    for kj in range(block_size):
-                        total += padded[i + ki, j + kj]
-                local_mean = total / (block_size * block_size)
-                threshold = local_mean - C
-                output[i, j] = 255 if gray[i, j] > threshold else 0
+        for ki in range(block_size):
+            for kj in range(block_size):
+                total += padded[ki:ki + height, kj:kj + width]
+
+        local_mean = total / (block_size * block_size)
+        threshold = local_mean - C
+        output = (gray > threshold).astype(np.uint8) * 255
 
         return output
+
+    @staticmethod
+    def _sobel_magnitude_manual(gray):
+        gray = gray.astype(np.float64)
+        height, width = gray.shape
+        gx_kernel = [
+            [-1, 0, 1],
+            [-2, 0, 2],
+            [-1, 0, 1],
+        ]
+        gy_kernel = [
+            [-1, -2, -1],
+            [0, 0, 0],
+            [1, 2, 1],
+        ]
+
+        padded = np.pad(gray, ((1, 1), (1, 1)), mode="edge")
+        gx = np.zeros((height, width), dtype=np.float64)
+        gy = np.zeros((height, width), dtype=np.float64)
+
+        for ki in range(3):
+            for kj in range(3):
+                window = padded[ki:ki + height, kj:kj + width]
+                gx += window * gx_kernel[ki][kj]
+                gy += window * gy_kernel[ki][kj]
+
+        return np.sqrt(gx * gx + gy * gy)
 
     @staticmethod
     def sobel_edge_manual(image, threshold=None):
@@ -332,41 +354,7 @@ class ImageProcessor:
         else:
             gray = image.copy()
 
-        gray = gray.astype(np.float64)
-        height, width = gray.shape
-
-        gx_kernel = np.array(
-            [
-                [-1, 0, 1],
-                [-2, 0, 2],
-                [-1, 0, 1],
-            ],
-            dtype=np.float64,
-        )
-        gy_kernel = np.array(
-            [
-                [-1, -2, -1],
-                [0, 0, 0],
-                [1, 2, 1],
-            ],
-            dtype=np.float64,
-        )
-
-        padded = np.pad(gray, ((1, 1), (1, 1)), mode="constant", constant_values=0)
-        magnitude = np.zeros((height, width), dtype=np.float64)
-
-        for i in range(height):
-            for j in range(width):
-                gx = 0.0
-                gy = 0.0
-
-                for ki in range(3):
-                    for kj in range(3):
-                        pixel = padded[i + ki, j + kj]
-                        gx += pixel * gx_kernel[ki, kj]
-                        gy += pixel * gy_kernel[ki, kj]
-
-                magnitude[i, j] = np.sqrt(gx * gx + gy * gy)
+        magnitude = ImageProcessor._sobel_magnitude_manual(gray)
 
         max_value = np.max(magnitude)
         if max_value > 0:
@@ -702,24 +690,12 @@ class ImageProcessor:
         else:
             gray = blurred.copy()
             
-        gx_kernel = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
-        gy_kernel = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
-        
-        gx = np.zeros_like(gray, dtype=float)
-        gy = np.zeros_like(gray, dtype=float)
-        
-        pad = 1
-        padded = np.pad(gray, ((pad, pad), (pad, pad)), mode='edge')
-        h, w = gray.shape
-        
-        for i in range(h):
-            for j in range(w):
-                window = padded[i:i+3, j:j+3]
-                gx[i, j] = np.sum(window * gx_kernel)
-                gy[i, j] = np.sum(window * gy_kernel)
-        
-        magnitude = np.sqrt(gx**2 + gy**2)
-        magnitude = (magnitude / magnitude.max() * 255).astype(np.uint8)
+        magnitude = ImageProcessor._sobel_magnitude_manual(gray)
+        max_value = np.max(magnitude)
+        if max_value > 0:
+            magnitude = (magnitude / max_value * 255).astype(np.uint8)
+        else:
+            magnitude = magnitude.astype(np.uint8)
         
         # 3. Çift Eşikleme (Double Thresholding)
         return ImageProcessor.double_threshold_manual(magnitude, low=low, high=high)

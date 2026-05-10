@@ -44,29 +44,24 @@ class App(ctk.CTk):
 
         self._ctk_img_orig = None
         self._ctk_img_mod = None
+        self._progress_reset_job = None
 
         self.setup_ui()
 
     def setup_ui(self):
         # --- Üst Panel (Header) ---
-        self.header_frame = ctk.CTkFrame(self, height=70, corner_radius=0, fg_color=self.colors["sidebar"])
+        self.header_frame = ctk.CTkFrame(self, height=82, corner_radius=0, fg_color=self.colors["sidebar"])
         self.header_frame.pack(side="top", fill="x")
-        
-        self.logo_label = ctk.CTkLabel(
-            self.header_frame, text="✨ VisionCraft Pro", 
-            font=ctk.CTkFont(family="Inter", size=24, weight="bold"),
-            text_color=self.colors["accent"]
-        )
-        self.logo_label.pack(side="left", padx=30)
+        self.header_frame.pack_propagate(False)
 
         # Hızlı Aksiyon Butonları (Sağ Üst)
         self.top_btn_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
-        self.top_btn_frame.pack(side="right", padx=20)
+        self.top_btn_frame.pack(side="right", padx=24, pady=14)
 
         self.btn_load = self.create_top_button("📂 Resim Aç", self.load_image, self.colors["accent"])
         self.btn_load2 = self.create_top_button("➕ 2. Resim", self.load_second_image, "#818cf8")
+        self.btn_clear2 = self.create_top_button("2. Resmi Sil", self.clear_second_image, self.colors["danger"])
         self.btn_save = self.create_top_button("💾 Kaydet", self.save_current, self.colors["success"])
-        self.btn_reset = self.create_top_button("↺ Sıfırla", self.reset_image, self.colors["danger"])
 
         # --- Ana İçerik ---
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -99,24 +94,36 @@ class App(ctk.CTk):
 
         self.setup_filters()
 
-        # Uygula Butonu (Sidebar Alt)
+        # Alt işlem butonları
+        self.bottom_actions = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        self.bottom_actions.pack(side="bottom", fill="x", padx=20, pady=(5, 20))
+
+        self.status_label = ctk.CTkLabel(self.bottom_actions, text="Hazır", font=ctk.CTkFont(size=11), text_color="#64748b")
+        self.status_label.pack(fill="x", pady=(0, 5))
+
+        self.progress = ctk.CTkProgressBar(self.bottom_actions, mode="determinate", height=8, progress_color=self.colors["accent"])
+        self.progress.pack(fill="x", pady=(0, 10))
+        self.progress.set(0)
+
         self.btn_apply = ctk.CTkButton(
-            self.sidebar, text="ALGORİTMAYI ÇALIŞTIR", 
+            self.bottom_actions, text="ALGORİTMAYI ÇALIŞTIR",
             height=45, corner_radius=8,
             font=ctk.CTkFont(weight="bold"),
             fg_color=self.colors["accent"],
             hover_color=self.colors["accent_hover"],
             command=self.apply_filter
         )
-        self.btn_apply.pack(side="bottom", fill="x", padx=20, pady=(10, 20))
+        self.btn_apply.pack(fill="x", pady=(0, 8))
 
-        # Progress & Status
-        self.progress = ctk.CTkProgressBar(self.sidebar, mode="indeterminate", height=4, progress_color=self.colors["accent"])
-        self.progress.pack(side="bottom", fill="x", padx=20)
-        self.progress.set(0)
-
-        self.status_label = ctk.CTkLabel(self.sidebar, text="Hazır", font=ctk.CTkFont(size=11), text_color="#64748b")
-        self.status_label.pack(side="bottom", pady=5)
+        self.btn_reset = ctk.CTkButton(
+            self.bottom_actions, text="SIFIRLA",
+            height=45, corner_radius=8,
+            font=ctk.CTkFont(weight="bold"),
+            fg_color=self.colors["danger"],
+            hover_color="#b91c1c",
+            command=self.reset_image
+        )
+        self.btn_reset.pack(fill="x")
 
         # Sağ Panel (Görüntüleme)
         self.view_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
@@ -126,7 +133,7 @@ class App(ctk.CTk):
         self.title_frame = ctk.CTkFrame(self.view_frame, fg_color="transparent", height=40)
         self.title_frame.pack(fill="x", pady=(0, 10))
         
-        ctk.CTkLabel(self.title_frame, text="ORİJİNAL", font=ctk.CTkFont(weight="bold")).place(relx=0.25, rely=0.5, anchor="center")
+        ctk.CTkLabel(self.title_frame, text="ORİJİNAL", font=ctk.CTkFont(weight="bold"), text_color=self.colors["success"]).place(relx=0.25, rely=0.5, anchor="center")
         ctk.CTkLabel(self.title_frame, text="İŞLENMİŞ", font=ctk.CTkFont(weight="bold"), text_color=self.colors["accent"]).place(relx=0.75, rely=0.5, anchor="center")
 
         # Görüntü Panelleri
@@ -147,9 +154,9 @@ class App(ctk.CTk):
         btn = ctk.CTkButton(
             self.top_btn_frame, text=text, command=command,
             fg_color="transparent", border_width=1, border_color=color,
-            hover_color=color, text_color=color, height=35, width=100
+            hover_color=color, text_color=color, height=40, width=110
         )
-        btn.pack(side="left", padx=5)
+        btn.pack(side="left", padx=6)
         return btn
 
     def setup_filters(self):
@@ -197,6 +204,12 @@ class App(ctk.CTk):
         self.status_label.configure(text=msg)
         self.update_idletasks()
 
+    def _reset_progress_idle(self):
+        self.progress.set(0)
+        self.progress.configure(progress_color=self.colors["accent"], mode="determinate")
+        self.status_label.configure(text_color="#64748b")
+        self._progress_reset_job = None
+
     def _read_image(self, filepath):
         """PIL kullanarak görüntüyü numpy array olarak okur."""
         try:
@@ -232,6 +245,11 @@ class App(ctk.CTk):
             else:
                 mb.showerror("Hata", "2. resim okunamadı!")
 
+    def clear_second_image(self):
+        self.second_image_matrix = None
+        self.btn_load2.configure(text="➕ 2. Resim", text_color="#818cf8")
+        self.set_status("2. resim kaldirildi.")
+
     def save_current(self):
         if self.current_image_matrix is not None:
             path = fd.asksaveasfilename(defaultextension=".png")
@@ -263,7 +281,12 @@ class App(ctk.CTk):
             mb.showwarning("Uyari", "Bu islem icin once 2. resmi yuklemelisiniz.")
             self.set_status("2. resim bekleniyor.")
             return
+        if self._progress_reset_job is not None:
+            self.after_cancel(self._progress_reset_job)
+            self._progress_reset_job = None
         self.set_status(f"İşleniyor: {choice}...")
+        self.status_label.configure(text_color=self.colors["accent"])
+        self.progress.configure(mode="indeterminate", progress_color=self.colors["accent"])
         self.progress.start()
         self.btn_apply.configure(state="disabled")
         threading.Thread(target=self._run_filter, args=(choice,), daemon=True).start()
@@ -328,10 +351,21 @@ class App(ctk.CTk):
 
     def _finish_filter(self, msg):
         self.progress.stop()
-        self.progress.set(0)
+        self.progress.configure(mode="determinate")
+        if "Hata" in msg:
+            self.progress.configure(progress_color=self.colors["danger"])
+            self.status_label.configure(text_color=self.colors["danger"])
+        elif "uygulanmadi" in msg.lower():
+            self.progress.configure(progress_color="#f59e0b")
+            self.status_label.configure(text_color="#f59e0b")
+        else:
+            self.progress.configure(progress_color=self.colors["success"])
+            self.status_label.configure(text_color=self.colors["success"])
+        self.progress.set(1)
         self.btn_apply.configure(state="normal")
         self.display_images()
         self.set_status(msg)
+        self._progress_reset_job = self.after(1200, self._reset_progress_idle)
 
     def _show_histogram(self, hist):
         plt.figure("Histogram", figsize=(6,4))
