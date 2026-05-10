@@ -1,29 +1,35 @@
-# Görüntü İşleme Ödevi
+# Görüntü İşleme Projesi
 
-Bu proje, Numpy kütüphanesi kullanılarak temel görüntü işleme algoritmalarının manuel olarak (OpenCV hazır fonksiyonları kullanılmadan) gerçeklendiği bir masaüstü uygulamasıdır.
+Python ile hazırlanmış masaüstü görüntü işleme uygulamasıdır. İşlemler hazır görüntü işleme fonksiyonları kullanılmadan, NumPy ve manuel algoritma mantığıyla yazılmıştır.
 
-## Özellikler
+## Çalıştırma
 
-- **Gri ve Binary Dönüşüm**: Görüntüyü gri tonlamalı ve siyah-beyaz formatına çevirir.
-- **Döndürme ve Kırpma**: Görüntüyü 90 derece döndürür ve belirli alanları maskeler (kırpar).
-- **Filtreler**: Median, Mean, Gaussian ve Motion Blur filtreleri.
-- **Kenar Bulma**: Sobel algoritması ile kenar tespiti.
-- **Morfolojik İşlemler**: Aşınma, Genişleme, Açma ve Kapama.
-- **Histogram**: Histogram hesaplama ve germe işlemleri.
-- **Aritmetik İşlemler**: İki görüntü arasında toplama, çıkarma ve çarpma.
+```bash
+python main.py
+```
 
-## Kullanım
+## Gerekli Kütüphaneler
 
-1. `main.py` dosyasını çalıştırın.
-2. Sol menüden "Resim Yükle" butonuna basarak bir görsel seçin.
-3. Filtre listesinden istediğiniz işlemi seçip "Uygula" butonuna basın.
-4. "Görüntü Döndürme" her uygulandığında resmi 90 derece döndürecektir.
+```bash
+pip install numpy pillow matplotlib customtkinter
+```
 
-## Gereksinimler
+## Uygulamadaki İşlemler
 
-- Python 3.x
-- numpy
-- customtkinter
-- Pillow
-- matplotlib
-- opencv-python (Görüntü okuma/yazma ve test amaçlı)
+- Gri seviye ve thresholding
+- Kontrast, histogram germe ve histogram eşitleme
+- RGB-HSV ve RGB-YCbCr renk dönüşümleri
+- Görüntü döndürme, zoom ve kırpma
+- Salt & Pepper gürültüsü ekleme
+- Mean, Median ve Motion Blur filtreleri
+- Sobel ve Canny kenar bulma
+- Erosion, Dilation, Opening ve Closing morfolojik işlemleri
+- İki görüntü ile aritmetik işlemler: toplama, çıkarma, çarpma, AND, OR, XOR
+- Adaptif eşikleme ve çift eşikleme
+
+## Dosyalar
+
+- `main.py`: Arayüz ve işlem seçimleri
+- `Processor.py`: Görüntü işleme algoritmaları
+- `Image_Capture.py`: Görüntü okuma/gösterme yardımcıları
+- `test.py`: Basit test dosyası
