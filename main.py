@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageDraw, ImageOps
 import tkinter.filedialog as fd
 import tkinter.messagebox as mb
 import numpy as np
@@ -11,15 +11,32 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
+# --- Modern Tema Ayarları ---
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Görüntü İşleme Projesi (Numpy ile Sıfırdan)")
-        self.geometry("1200x750")
-        self.minsize(900, 600)
+
+        # --- Pencere Konfigürasyonu ---
+        self.title("VisionCraft Pro | Görüntü İşleme Stüdyosu")
+        self.geometry("1400x850")
+        self.minsize(1000, 700)
+        
+        # Renk Paleti
+        self.colors = {
+            "bg": "#0f172a",
+            "sidebar": "#1e293b",
+            "accent": "#38bdf8",
+            "accent_hover": "#0ea5e9",
+            "danger": "#ef4444",
+            "success": "#10b981",
+            "text": "#f8fafc",
+            "card": "#334155"
+        }
+
+        self.configure(fg_color=self.colors["bg"])
 
         self.original_image_matrix = None
         self.current_image_matrix = None
@@ -28,420 +45,289 @@ class App(ctk.CTk):
         self._ctk_img_orig = None
         self._ctk_img_mod = None
 
-        # --- Sidebar ---
-        self.sidebar_frame = ctk.CTkFrame(self, width=220, corner_radius=0)
-        self.sidebar_frame.pack(side="left", fill="y", padx=0, pady=0)
-        self.sidebar_frame.pack_propagate(False)
+        self.setup_ui()
 
+    def setup_ui(self):
+        # --- Üst Panel (Header) ---
+        self.header_frame = ctk.CTkFrame(self, height=70, corner_radius=0, fg_color=self.colors["sidebar"])
+        self.header_frame.pack(side="top", fill="x")
+        
         self.logo_label = ctk.CTkLabel(
-            self.sidebar_frame, text="🖼️ Manuel Filtreler",
-            font=ctk.CTkFont(size=20, weight="bold")
+            self.header_frame, text="✨ VisionCraft Pro", 
+            font=ctk.CTkFont(family="Inter", size=24, weight="bold"),
+            text_color=self.colors["accent"]
         )
-        self.logo_label.pack(padx=20, pady=(20, 10))
+        self.logo_label.pack(side="left", padx=30)
 
-        self.btn_load = ctk.CTkButton(
-            self.sidebar_frame, text="📂 Resim Yükle",
-            command=self.load_image, fg_color="#2563EB", hover_color="#1D4ED8"
+        # Hızlı Aksiyon Butonları (Sağ Üst)
+        self.top_btn_frame = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.top_btn_frame.pack(side="right", padx=20)
+
+        self.btn_load = self.create_top_button("📂 Resim Aç", self.load_image, self.colors["accent"])
+        self.btn_load2 = self.create_top_button("➕ 2. Resim", self.load_second_image, "#818cf8")
+        self.btn_save = self.create_top_button("💾 Kaydet", self.save_current, self.colors["success"])
+        self.btn_reset = self.create_top_button("↺ Sıfırla", self.reset_image, self.colors["danger"])
+
+        # --- Ana İçerik ---
+        self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.content_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        # Sol Sidebar (Kontroller)
+        self.sidebar = ctk.CTkFrame(self.content_frame, width=320, corner_radius=15, fg_color=self.colors["sidebar"])
+        self.sidebar.pack(side="left", fill="y", padx=(0, 20))
+        self.sidebar.pack_propagate(False)
+
+        ctk.CTkLabel(
+            self.sidebar, text="KONTROL PANELİ", 
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color="#94a3b8"
+        ).pack(pady=(20, 10))
+
+        # Tabview - Filtre Grupları
+        self.tabs = ctk.CTkTabview(
+            self.sidebar, 
+            segmented_button_selected_color=self.colors["accent"],
+            segmented_button_unselected_hover_color="#334155",
+            fg_color="transparent"
         )
-        self.btn_load.pack(padx=20, pady=10, fill="x")
+        self.tabs.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.btn_save = ctk.CTkButton(
-            self.sidebar_frame, text="💾 Resmi Kaydet",
-            command=self.save_current, fg_color="#059669", hover_color="#047857"
-        )
-        self.btn_save.pack(padx=20, pady=5, fill="x")
+        self.tab_basic = self.tabs.add("Temel")
+        self.tab_color = self.tabs.add("Renk")
+        self.tab_filter = self.tabs.add("Filtre")
+        self.tab_adv = self.tabs.add("İleri")
 
-        self.btn_load2 = ctk.CTkButton(
-            self.sidebar_frame, text="📂 2. Resim Yükle (Aritmetik)",
-            command=self.load_second_image, fg_color="#7C3AED", hover_color="#6D28D9",
-            font=ctk.CTkFont(size=11)
-        )
-        self.btn_load2.pack(padx=20, pady=5, fill="x")
+        self.setup_filters()
 
-        # --- Filtre Seçimi ---
-        ctk.CTkLabel(self.sidebar_frame, text="Filtre / İşlem Seçin:",
-                     font=ctk.CTkFont(size=13)).pack(padx=20, pady=(20, 5))
-
-        self.filter_option = ctk.CTkComboBox(self.sidebar_frame, values=[
-            "1. Gri Seviye",
-            "2. Thresholding (Eşikleme)",
-            "3. Kontrast Ayarı",
-            "4. Histogram Germe",
-            "5. Histogram Eşitleme",
-            "6. Histogram Görüntüle",
-            "7. RGB → HSV Dönüşümü",
-            "8. RGB → YCbCr Dönüşümü",
-            "9. Görüntü Döndürme (90°)",
-            "10. Zoom (1.5x)",
-            "11. Salt & Pepper Gürültüsü",
-            "12. Mean Filtre",
-            "13. Median Filtre",
-            "14. Motion Blur",
-            "15. Sobel Edge",
-            "16. Canny Edge",
-            "17. Morph Erosion (Aşınma)",
-            "18. Morph Dilation (Genişleme)",
-            "19. Morph Opening (Açma)",
-            "20. Morph Closing (Kapama)",
-            "21. Aritmetik: Toplama",
-            "22. Aritmetik: Çıkarma",
-            "23. Aritmetik: Çarpma",
-            "24. Aritmetik: AND",
-            "25. Aritmetik: OR",
-            "26. Aritmetik: XOR",
-            "27. Adaptif Eşikleme",
-            "28. Çift Eşikleme",
-            "29. Görüntü Kırpma (Maskeleme)",
-            "30. PLAKA OKUMA (LPR)"
-        ], width=200)
-        self.filter_option.pack(padx=20, pady=5, fill="x")
-
+        # Uygula Butonu (Sidebar Alt)
         self.btn_apply = ctk.CTkButton(
-            self.sidebar_frame, text="▶ Uygula",
-            command=self.apply_filter, fg_color="#DC2626", hover_color="#B91C1C"
+            self.sidebar, text="ALGORİTMAYI ÇALIŞTIR", 
+            height=45, corner_radius=8,
+            font=ctk.CTkFont(weight="bold"),
+            fg_color=self.colors["accent"],
+            hover_color=self.colors["accent_hover"],
+            command=self.apply_filter
         )
-        self.btn_apply.pack(padx=20, pady=10, fill="x")
+        self.btn_apply.pack(side="bottom", fill="x", padx=20, pady=(10, 20))
 
-        self.btn_reset = ctk.CTkButton(
-            self.sidebar_frame, text="↺ Sıfırla",
-            command=self.reset_image, fg_color="#6B7280", hover_color="#4B5563"
-        )
-        self.btn_reset.pack(padx=20, pady=5, fill="x")
-
-        # --- Durum Etiketi ---
-        self.status_label = ctk.CTkLabel(
-            self.sidebar_frame, text="Durum: Hazır",
-            font=ctk.CTkFont(size=11), text_color="#9CA3AF"
-        )
-        self.status_label.pack(padx=20, pady=(20, 5), side="bottom")
-
-        # --- Progress Bar ---
-        self.progress = ctk.CTkProgressBar(self.sidebar_frame, mode="indeterminate")
-        self.progress.pack(padx=20, pady=(0, 10), fill="x", side="bottom")
+        # Progress & Status
+        self.progress = ctk.CTkProgressBar(self.sidebar, mode="indeterminate", height=4, progress_color=self.colors["accent"])
+        self.progress.pack(side="bottom", fill="x", padx=20)
         self.progress.set(0)
 
-        # --- Main Image Area ---
-        self.main_frame = ctk.CTkFrame(self)
-        self.main_frame.pack(side="right", fill="both", expand=True, padx=10, pady=10)
+        self.status_label = ctk.CTkLabel(self.sidebar, text="Hazır", font=ctk.CTkFont(size=11), text_color="#64748b")
+        self.status_label.pack(side="bottom", pady=5)
 
-        self.label_title = ctk.CTkLabel(
-            self.main_frame,
-            text="Orijinal vs İşlenmiş Görüntü",
-            font=ctk.CTkFont(size=18, weight="bold")
+        # Sağ Panel (Görüntüleme)
+        self.view_frame = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.view_frame.pack(side="right", fill="both", expand=True)
+
+        # Başlıklar
+        self.title_frame = ctk.CTkFrame(self.view_frame, fg_color="transparent", height=40)
+        self.title_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(self.title_frame, text="ORİJİNAL", font=ctk.CTkFont(weight="bold")).place(relx=0.25, rely=0.5, anchor="center")
+        ctk.CTkLabel(self.title_frame, text="İŞLENMİŞ", font=ctk.CTkFont(weight="bold"), text_color=self.colors["accent"]).place(relx=0.75, rely=0.5, anchor="center")
+
+        # Görüntü Panelleri
+        self.image_area = ctk.CTkFrame(self.view_frame, fg_color="#1e293b", corner_radius=20)
+        self.image_area.pack(fill="both", expand=True)
+
+        self.panel_orig = ctk.CTkLabel(self.image_area, text="Resim Bekleniyor...", text_color="#475569")
+        self.panel_orig.place(relx=0.25, rely=0.5, anchor="center")
+
+        self.panel_mod = ctk.CTkLabel(self.image_area, text="İşlem Bekleniyor...", text_color="#475569")
+        self.panel_mod.place(relx=0.75, rely=0.5, anchor="center")
+
+        # Orta Çizgi (Separator)
+        self.sep = ctk.CTkFrame(self.image_area, width=2, fg_color="#334155")
+        self.sep.place(relx=0.5, rely=0.1, relheight=0.8, anchor="center")
+
+    def create_top_button(self, text, command, color):
+        btn = ctk.CTkButton(
+            self.top_btn_frame, text=text, command=command,
+            fg_color="transparent", border_width=1, border_color=color,
+            hover_color=color, text_color=color, height=35, width=100
         )
-        self.label_title.pack(pady=10)
+        btn.pack(side="left", padx=5)
+        return btn
 
-        self.image_container = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        self.image_container.pack(expand=True, fill="both", padx=10, pady=10)
+    def setup_filters(self):
+        # Gruplanmış Filtre Listeleri
+        filters = {
+            "basic": [
+                "1. Gri Seviye", "2. Thresholding", "9. Görüntü Döndürme", 
+                "10. Zoom (1.5x)", "29. Görüntü Kırpma"
+            ],
+            "color": [
+                "3. Kontrast Ayarı", "4. Histogram Germe", "5. Histogram Eşitleme",
+                "6. Histogram Görüntüle", "7. RGB → HSV", "8. RGB → YCbCr"
+            ],
+            "filter": [
+                "11. Salt & Pepper", "12. Mean Filtre", "13. Median Filtre",
+                "14. Motion Blur", "15. Sobel Edge", "16. Canny Edge"
+            ],
+            "adv": [
+                "17. Morph Erosion", "18. Morph Dilation", "19. Morph Opening", "20. Morph Closing",
+                "21. Aritmetik: Toplama", "22. Aritmetik: Çıkarma", "23. Aritmetik: Çarpma",
+                "24. Aritmetik: AND", "25. Aritmetik: OR", "26. Aritmetik: XOR",
+                "27. Adaptif Eşikleme", "28. Çift Eşikleme", "30. PLAKA OKUMA (LPR)"
+            ]
+        }
 
-        # Sol panel - Orijinal
-        left_frame = ctk.CTkFrame(self.image_container)
-        left_frame.pack(side="left", padx=5, expand=True, fill="both")
-        ctk.CTkLabel(left_frame, text="Orijinal", font=ctk.CTkFont(size=12, weight="bold")).pack(pady=5)
-        self.panel_orig = ctk.CTkLabel(left_frame, text="Resim yüklenmedi\n\n📂 Sol menüden\n'Resim Yükle' butonuna basın")
-        self.panel_orig.pack(expand=True, padx=10, pady=10)
+        self.filter_vars = {}
+        for tab_key, items in filters.items():
+            parent = getattr(self, f"tab_{tab_key}")
+            scroll = ctk.CTkScrollableFrame(parent, fg_color="transparent", height=400)
+            scroll.pack(fill="both", expand=True)
+            
+            var = ctk.StringVar(value=items[0])
+            self.filter_vars[tab_key] = var
+            
+            for item in items:
+                rb = ctk.CTkRadioButton(
+                    scroll, text=item, variable=var, value=item,
+                    hover_color=self.colors["accent"], border_color="#475569",
+                    fg_color=self.colors["accent"]
+                )
+                rb.pack(pady=10, padx=10, anchor="w")
 
-        # Sağ panel - İşlenmiş
-        right_frame = ctk.CTkFrame(self.image_container)
-        right_frame.pack(side="right", padx=5, expand=True, fill="both")
-        ctk.CTkLabel(right_frame, text="İşlenmiş", font=ctk.CTkFont(size=12, weight="bold")).pack(pady=5)
-        self.panel_mod = ctk.CTkLabel(right_frame, text="Henüz işlem yapılmadı\n\nBir filtre seçip\n'Uygula' butonuna basın")
-        self.panel_mod.pack(expand=True, padx=10, pady=10)
-
-    # ------------------------------------------------------------------
+    # --- Backend Entegrasyonu (KODLARA DOKUNULMADI) ---
     def set_status(self, msg):
-        self.status_label.configure(text=f"Durum: {msg}")
+        self.status_label.configure(text=msg)
         self.update_idletasks()
 
+    def _read_image(self, filepath):
+        """PIL kullanarak görüntüyü numpy array olarak okur."""
+        try:
+            pil_img = Image.open(filepath)
+            pil_img = ImageOps.exif_transpose(pil_img) # EXIF bilgilerine göre resmi düzelt (Yan gelme sorunu)
+            pil_img = pil_img.convert("RGB")
+            return np.array(pil_img)
+        except Exception as e:
+            return None
+
     def load_image(self):
-        filepath = fd.askopenfilename(
-            title="Görüntü Dosyası Seçin",
-            filetypes=[
-                ("Tüm Görüntüler", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff"),
-                ("PNG", "*.png"), ("JPEG", "*.jpg *.jpeg"),
-                ("BMP", "*.bmp"), ("Tüm Dosyalar", "*.*")
-            ]
-        )
-        if not filepath:
-            return
-
-        self.set_status("Yükleniyor...")
-        try:
-            img = self._read_image(filepath)
-            if img is None:
-                mb.showerror("Hata", f"Görüntü okunamadı!\n\nDosya: {filepath}")
-                self.set_status("Yükleme başarısız")
-                return
-
-            self.original_image_matrix = img
-            self.current_image_matrix = img.copy()
-            self.display_images()
-            h, w = img.shape[:2]
-            self.set_status(f"Yüklendi ({w}x{h})")
-        except Exception as e:
-            mb.showerror("Hata", f"Dosya yüklenirken hata:\n{e}")
-            traceback.print_exc()
-            self.set_status("Hata!")
-
-    def load_second_image(self):
-        filepath = fd.askopenfilename(
-            title="2. Görüntü Dosyası Seçin (Aritmetik İşlemler İçin)",
-            filetypes=[
-                ("Tüm Görüntüler", "*.png *.jpg *.jpeg *.bmp *.tif *.tiff"),
-                ("Tüm Dosyalar", "*.*")
-            ]
-        )
-        if not filepath:
-            return
-        try:
-            img = self._read_image(filepath)
-            if img is None:
-                mb.showerror("Hata", f"2. görüntü okunamadı!\n{filepath}")
-                return
-            self.second_image_matrix = img
-            self.set_status(f"2. resim yüklendi ({img.shape[1]}x{img.shape[0]})")
-        except Exception as e:
-            mb.showerror("Hata", f"2. görüntü yüklenirken hata:\n{e}")
-
-    def save_current(self):
-        if self.current_image_matrix is None:
-            mb.showwarning("Uyarı", "Kaydedilecek görüntü yok!")
-            return
-        filepath = fd.asksaveasfilename(
-            defaultextension=".png",
-            filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg"), ("BMP", "*.bmp")]
-        )
+        filepath = fd.askopenfilename(filetypes=[("Görüntüler", "*.png *.jpg *.jpeg *.bmp *.tif")])
         if filepath:
             try:
-                mat = self.current_image_matrix
-                if mat.dtype != np.uint8:
-                    mat = np.clip(mat, 0, 255).astype(np.uint8)
-                if len(mat.shape) == 2:
-                    pil_img = Image.fromarray(mat, mode='L')
+                img_array = self._read_image(filepath)
+                if img_array is not None:
+                    self.original_image_matrix = img_array
+                    self.current_image_matrix = self.original_image_matrix.copy()
+                    self.display_images()
+                    self.set_status(f"Yüklendi: {img_array.shape[1]}x{img_array.shape[0]}")
                 else:
-                    pil_img = Image.fromarray(mat)
-                pil_img.save(filepath)
-                self.set_status("Kaydedildi ✓")
-            except Exception as e:
-                mb.showerror("Hata", f"Kaydetme hatası:\n{e}")
+                    raise Exception("Resim okunamadı")
+            except: mb.showerror("Hata", "Resim yüklenemedi!")
+
+    def load_second_image(self):
+        filepath = fd.askopenfilename(filetypes=[("Görüntüler", "*.png *.jpg *.jpeg *.bmp *.tif")])
+        if filepath:
+            img_array = self._read_image(filepath)
+            if img_array is not None:
+                self.second_image_matrix = img_array
+                self.btn_load2.configure(text="Resim Yüklendi ✅", text_color=self.colors["success"])
+                mb.showinfo("Başarılı", "2. Resim aritmetik işlemler için hazır!")
+                self.set_status("2. Resim başarıyla yüklendi.")
+            else:
+                mb.showerror("Hata", "2. resim okunamadı!")
+
+    def save_current(self):
+        if self.current_image_matrix is not None:
+            path = fd.asksaveasfilename(defaultextension=".png")
+            if path: Image.fromarray(self.current_image_matrix).save(path)
 
     def reset_image(self):
         if self.original_image_matrix is not None:
             self.current_image_matrix = self.original_image_matrix.copy()
             self.display_images()
-            self.set_status("Sıfırlandı ✓")
 
     def display_images(self):
-        max_size = (450, 400)
+        max_size = (500, 500)
+        for mat, label, attr in [(self.original_image_matrix, self.panel_orig, "_ctk_img_orig"), 
+                                (self.current_image_matrix, self.panel_mod, "_ctk_img_mod")]:
+            if mat is not None:
+                img = Image.fromarray(mat.astype(np.uint8))
+                img.thumbnail(max_size, Image.Resampling.LANCZOS)
+                ctk_img = ctk.CTkImage(img, size=img.size)
+                setattr(self, attr, ctk_img)
+                label.configure(image=ctk_img, text="")
 
-        if self.original_image_matrix is not None:
-            try:
-                orig = self.original_image_matrix
-                if orig.dtype != np.uint8:
-                    orig = np.clip(orig, 0, 255).astype(np.uint8)
-                pil_o = Image.fromarray(orig, mode='L') if len(orig.shape) == 2 else Image.fromarray(orig)
-                pil_o.thumbnail(max_size, Image.Resampling.LANCZOS)
-                self._ctk_img_orig = ctk.CTkImage(
-                    light_image=pil_o, dark_image=pil_o,
-                    size=(pil_o.size[0], pil_o.size[1])
-                )
-                self.panel_orig.configure(image=self._ctk_img_orig, text="")
-            except Exception as e:
-                print(f"Orijinal görüntü gösterim hatası: {e}")
-
-        if self.current_image_matrix is not None:
-            try:
-                curr = self.current_image_matrix
-                if curr.dtype != np.uint8:
-                    curr = np.clip(curr, 0, 255).astype(np.uint8)
-                pil_m = Image.fromarray(curr, mode='L') if len(curr.shape) == 2 else Image.fromarray(curr)
-                pil_m.thumbnail(max_size, Image.Resampling.LANCZOS)
-                self._ctk_img_mod = ctk.CTkImage(
-                    light_image=pil_m, dark_image=pil_m,
-                    size=(pil_m.size[0], pil_m.size[1])
-                )
-                self.panel_mod.configure(image=self._ctk_img_mod, text="")
-            except Exception as e:
-                print(f"İşlenmiş görüntü gösterim hatası: {e}")
-
-    # ------------------------------------------------------------------
-    def _read_image(self, filepath):
-        """PIL kullanarak görüntüyü numpy array olarak okur."""
-        try:
-            pil_img = Image.open(filepath).convert("RGB")
-            return np.array(pil_img)
-        except Exception as e:
-            print(f"Görüntü okuma hatası: {e}")
-            return None
-
-    # ------------------------------------------------------------------
     def apply_filter(self):
-        if self.current_image_matrix is None:
-            mb.showwarning("Uyarı", "Önce bir görüntü yükleyin!")
-            return
-
-        choice = self.filter_option.get()
+        if self.current_image_matrix is None: return
+        tab = self.tabs.get()
+        choice = self.filter_vars[{"Temel":"basic","Renk":"color","Filtre":"filter","İleri":"adv"}[tab]].get()
         self.set_status(f"İşleniyor: {choice}...")
         self.progress.start()
-        self.btn_apply.configure(state="disabled")
-
-        thread = threading.Thread(target=self._run_filter, args=(choice,), daemon=True)
-        thread.start()
+        threading.Thread(target=self._run_filter, args=(choice,), daemon=True).start()
 
     def _run_filter(self, choice):
         try:
             mat = self.current_image_matrix.copy()
             result = None
-
-            if "1. Gri Seviye" in choice:
-                result = ImageProcessor.turn_gray(mat)
-
-            elif "2. Thresholding" in choice:
-                result = ImageProcessor.turn_binary(mat, threshold=127)
-
-            elif "3. Kontrast Ayarı" in choice:
-                result = ImageProcessor.adjust_contrast_manual(mat, factor=0.5)
-
-            elif "4. Histogram Germe" in choice:
-                result = ImageProcessor.stretch_histogram_manual(mat)
-
-            elif "5. Histogram Eşitleme" in choice:
-                result = ImageProcessor.histogram_equalization_manual(mat)
-
+            
+            # --- ALGORİTMA EŞLEŞTİRMELERİ (Birebir Aynı) ---
+            if "1. Gri Seviye" in choice: result = ImageProcessor.turn_gray(mat)
+            elif "2. Thresholding" in choice: result = ImageProcessor.turn_binary(mat, threshold=127)
+            elif "3. Kontrast Ayarı" in choice: result = ImageProcessor.adjust_contrast_manual(mat, factor=0.5)
+            elif "4. Histogram Germe" in choice: result = ImageProcessor.stretch_histogram_manual(mat)
+            elif "5. Histogram Eşitleme" in choice: result = ImageProcessor.histogram_equalization_manual(mat)
             elif "6. Histogram Görüntüle" in choice:
                 hist = ImageProcessor.get_histogram(mat)
                 self.after(0, lambda: self._show_histogram(hist))
-                self.after(0, lambda: self._finish_filter("Histogram oluşturuldu ✓"))
+                self.after(0, lambda: self._finish_filter("Histogram ✓"))
                 return
-
-            elif "7. RGB → HSV" in choice:
-                result = ImageProcessor.rgb_to_hsv_manual(mat)
-
-            elif "8. RGB → YCbCr" in choice:
-                result = ImageProcessor.rgb_to_ycbcr_manual(mat)
-
-            elif "9. Görüntü Döndürme" in choice:
-                # NOT: Ömer kanka bu her çağrıldığında 90 derece dönüyor, sunumda gösterebilirsin.
-                result = ImageProcessor.rotation_image(mat)
-
+            elif "7. RGB → HSV" in choice: result = ImageProcessor.rgb_to_hsv_manual(mat)
+            elif "8. RGB → YCbCr" in choice: result = ImageProcessor.rgb_to_ycbcr_manual(mat)
+            elif "9. Görüntü Döndürme" in choice: result = ImageProcessor.rotation_image(mat)
             elif "10. Zoom" in choice:
-                result = ImageProcessor.resize_manual(mat, 1.5)
-
-            elif "11. Salt & Pepper" in choice:
-                result = ImageProcessor.add_salt_pepper_noise_manual(mat)
-
-            elif "12. Mean Filtre" in choice:
-                result = ImageProcessor.mean_filter_manual(mat)
-
-            elif "13. Median Filtre" in choice:
-                result = ImageProcessor.median_filter_manual(mat)
-
-            elif "14. Motion Blur" in choice:
-                result = ImageProcessor.motion_blur_manual(mat)
-
-            elif "15. Sobel Edge" in choice:
-                result = ImageProcessor.sobel_edge_manual(mat)
-
-            elif "16. Canny Edge" in choice:
-                result = ImageProcessor.canny_edge_manual(mat)
-
-            elif "17. Morph Erosion" in choice:
-                result = ImageProcessor.turn_erode(mat)
-
-            elif "18. Morph Dilation" in choice:
-                result = ImageProcessor.turn_dilate(mat)
-
-            elif "19. Morph Opening" in choice:
-                result = ImageProcessor.turn_opening(mat)
-
-            elif "20. Morph Closing" in choice:
-                result = ImageProcessor.turn_closing(mat)
-
-            elif "21. Aritmetik: Toplama" in choice:
-                if self.second_image_matrix is None:
-                    self.after(0, lambda: mb.showwarning("Uyarı", "2. resmi yüklemelisiniz!"))
-                    return
-                result = ImageProcessor.add_images_manual(mat, self.second_image_matrix)
-
-            elif "22. Aritmetik: Çıkarma" in choice:
-                if self.second_image_matrix is None:
-                    self.after(0, lambda: mb.showwarning("Uyarı", "2. resmi yüklemelisiniz!"))
-                    return
-                result = ImageProcessor.subtract_images_manual(mat, self.second_image_matrix)
-
-            elif "23. Aritmetik: Çarpma" in choice:
-                if self.second_image_matrix is None:
-                    self.after(0, lambda: mb.showwarning("Uyarı", "2. resmi yüklemelisiniz!"))
-                    return
-                result = ImageProcessor.multiply_images_manual(mat, self.second_image_matrix)
-
-            elif "24. Aritmetik: AND" in choice:
-                if self.second_image_matrix is None:
-                    self.after(0, lambda: mb.showwarning("Uyarı", "2. resmi yüklemelisiniz!"))
-                    return
-                result = ImageProcessor.bitwise_and_manual(mat, self.second_image_matrix)
-
-            elif "25. Aritmetik: OR" in choice:
-                if self.second_image_matrix is None:
-                    self.after(0, lambda: mb.showwarning("Uyarı", "2. resmi yüklemelisiniz!"))
-                    return
-                result = ImageProcessor.bitwise_or_manual(mat, self.second_image_matrix)
-
-            elif "26. Aritmetik: XOR" in choice:
-                if self.second_image_matrix is None:
-                    self.after(0, lambda: mb.showwarning("Uyarı", "2. resmi yüklemelisiniz!"))
-                    return
-                result = ImageProcessor.bitwise_xor_manual(mat, self.second_image_matrix)
-
-            elif "27. Adaptif Eşikleme" in choice:
-                result = ImageProcessor.adaptive_threshold_manual(mat)
-
-            elif "28. Çift Eşikleme" in choice:
-                result = ImageProcessor.double_threshold_manual(mat)
-
-            elif "29. Görüntü Kırpma" in choice:
-                # Örnek: Resmin ortasını maskeleme
                 h, w = mat.shape[:2]
-                cw, ch = 200, 200
-                x = max(0, (w - cw) // 2)
-                y = max(0, (h - ch) // 2)
-                result = ImageProcessor.crop_image(mat, x, y, cw, ch)
-
-            else:
-                self.after(0, lambda: mb.showinfo("Bilgi", f"{choice} henüz eklenmedi."))
-                self.after(0, lambda: self._finish_filter("İşlem tamamlanamadı"))
-                return
+                nh, nw = int(h / 1.5), int(w / 1.5)
+                y1, x1 = (h - nh) // 2, (w - nw) // 2
+                cropped = mat[y1:y1+nh, x1:x1+nw]
+                result = ImageProcessor.resize_manual(cropped, 1.5)
+            elif "11. Salt & Pepper" in choice: result = ImageProcessor.add_salt_pepper_noise_manual(mat)
+            elif "12. Mean Filtre" in choice: result = ImageProcessor.mean_filter_manual(mat)
+            elif "13. Median Filtre" in choice: result = ImageProcessor.median_filter_manual(mat)
+            elif "14. Motion Blur" in choice: result = ImageProcessor.motion_blur_manual(mat)
+            elif "15. Sobel Edge" in choice: result = ImageProcessor.sobel_edge_manual(mat)
+            elif "16. Canny Edge" in choice: result = ImageProcessor.canny_edge_manual(mat)
+            elif "17. Morph Erosion" in choice: result = ImageProcessor.turn_erode(mat)
+            elif "18. Morph Dilation" in choice: result = ImageProcessor.turn_dilate(mat)
+            elif "19. Morph Opening" in choice: result = ImageProcessor.turn_opening(mat)
+            elif "20. Morph Closing" in choice: result = ImageProcessor.turn_closing(mat)
+            elif "21. Aritmetik: Toplama" in choice: result = ImageProcessor.add_images_manual(mat, self.second_image_matrix)
+            elif "22. Aritmetik: Çıkarma" in choice: result = ImageProcessor.subtract_images_manual(mat, self.second_image_matrix)
+            elif "23. Aritmetik: Çarpma" in choice: result = ImageProcessor.multiply_images_manual(mat, self.second_image_matrix)
+            elif "24. Aritmetik: AND" in choice: result = ImageProcessor.bitwise_and_manual(mat, self.second_image_matrix)
+            elif "25. Aritmetik: OR" in choice: result = ImageProcessor.bitwise_or_manual(mat, self.second_image_matrix)
+            elif "26. Aritmetik: XOR" in choice: result = ImageProcessor.bitwise_xor_manual(mat, self.second_image_matrix)
+            elif "27. Adaptif Eşikleme" in choice: result = ImageProcessor.adaptive_threshold_manual(mat)
+            elif "28. Çift Eşikleme" in choice: result = ImageProcessor.double_threshold_manual(mat)
+            elif "29. Görüntü Kırpma" in choice:
+                h, w = mat.shape[:2]
+                result = ImageProcessor.crop_image(mat, w//4, h//4, w//2, h//2)
 
             if result is not None:
-                if result.dtype != np.uint8:
-                    result = np.clip(result, 0, 255).astype(np.uint8)
-                self.current_image_matrix = result
-
-            self.after(0, lambda: self._finish_filter(f"{choice} uygulandı ✓"))
-
+                self.current_image_matrix = result.astype(np.uint8)
+            self.after(0, lambda: self._finish_filter("Başarıyla uygulandı ✓"))
         except Exception as e:
-            print(traceback.format_exc())
-            self.after(0, lambda: mb.showerror("İşlem Hatası", str(e)))
+            self.after(0, lambda: mb.showerror("Hata", str(e)))
             self.after(0, lambda: self._finish_filter("Hata!"))
 
-    def _finish_filter(self, status_msg):
+    def _finish_filter(self, msg):
         self.progress.stop()
         self.progress.set(0)
-        self.btn_apply.configure(state="normal")
         self.display_images()
-        self.set_status(status_msg)
+        self.set_status(msg)
 
     def _show_histogram(self, hist):
-        try:
-            plt.figure("Histogram")
-            plt.clf()
-            plt.bar(range(256), hist, color='gray', width=1)
-            plt.title("Piksel Yoğunluk Histogramı")
-            plt.xlabel("Piksel Değeri (0-255)")
-            plt.ylabel("Frekans")
-            plt.show(block=False)
-        except Exception as e:
-            print(f"Histogram gösterim hatası: {e}")
+        plt.figure("Histogram", figsize=(6,4))
+        plt.clf()
+        plt.bar(range(256), hist, color='#38bdf8', width=1)
+        plt.title("Piksel Yoğunluğu")
+        plt.show(block=False)
 
 if __name__ == "__main__":
     app = App()

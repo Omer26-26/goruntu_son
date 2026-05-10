@@ -651,22 +651,20 @@ class ImageProcessor:
         return rotated
     
     @staticmethod
-    def crop_image(image,x,y,width,height):
-        result_image=image.copy()
-
-        max_crop_x=result_image.shape[1] #Maks kırıpılacak genişlik
-        max_crop_y=result_image.shape[0] #Maks yükseklik
-
-        if x+width<=max_crop_x and y+height<=max_crop_y: #yükseklik ve genişlik aşıldı mı kontrol
-            
-            if image.ndim==3: # Boyut kontrol
-
-                result_image[y:y+height,x:x+width,:]=0 #belirtinlen alanalrı 0 yapar 
-
-            else:    
-                result_image[y:y+height,x:x+width,]=0 #belirtinlen alanalrı 0 yapar 
-
-        return result_image
+    def crop_image(image, x, y, width, height):
+        """
+        Gerçek Kırpma: Belirtilen koordinat aralığını yeni bir matris olarak döndürür.
+        """
+        h_max, w_max = image.shape[:2]
+        
+        # Koordinatların resim sınırları içinde kalmasını sağla
+        y_end = min(y + height, h_max)
+        x_end = min(x + width, w_max)
+        
+        if image.ndim == 3:
+            return image[y:y_end, x:x_end, :].copy()
+        else:
+            return image[y:y_end, x:x_end].copy()
     @staticmethod
     def histogram_equalization_manual(image):
         if image.ndim == 3:
