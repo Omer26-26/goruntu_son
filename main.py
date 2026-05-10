@@ -227,9 +227,8 @@ class App(ctk.CTk):
             img_array = self._read_image(filepath)
             if img_array is not None:
                 self.second_image_matrix = img_array
-                self.btn_load2.configure(text="Resim Yüklendi ✅", text_color=self.colors["success"])
-                mb.showinfo("Başarılı", "2. Resim aritmetik işlemler için hazır!")
-                self.set_status("2. Resim başarıyla yüklendi.")
+                self.btn_load2.configure(text=f"2. Resim: {img_array.shape[1]}x{img_array.shape[0]}", text_color=self.colors["success"])
+                self.set_status("2. resim aritmetik islemler icin hazir.")
             else:
                 mb.showerror("Hata", "2. resim okunamadı!")
 
@@ -255,11 +254,18 @@ class App(ctk.CTk):
                 label.configure(image=ctk_img, text="")
 
     def apply_filter(self):
-        if self.current_image_matrix is None: return
+        if self.current_image_matrix is None:
+            mb.showwarning("Uyari", "Once bir resim yukleyin.")
+            return
         tab = self.tabs.get()
         choice = self.filter_vars[{"Temel":"basic","Renk":"color","Filtre":"filter","İleri":"adv"}[tab]].get()
+        if "Aritmetik:" in choice and self.second_image_matrix is None:
+            mb.showwarning("Uyari", "Bu islem icin once 2. resmi yuklemelisiniz.")
+            self.set_status("2. resim bekleniyor.")
+            return
         self.set_status(f"İşleniyor: {choice}...")
         self.progress.start()
+        self.btn_apply.configure(state="disabled")
         threading.Thread(target=self._run_filter, args=(choice,), daemon=True).start()
 
     def _run_filter(self, choice):
@@ -308,6 +314,10 @@ class App(ctk.CTk):
             elif "29. Görüntü Kırpma" in choice:
                 h, w = mat.shape[:2]
                 result = ImageProcessor.crop_image(mat, w//4, h//4, w//2, h//2)
+            elif "30. PLAKA OKUMA" in choice:
+                self.after(0, lambda: mb.showinfo("Bilgi", "Plaka okuma henuz uygulanmadi."))
+                self.after(0, lambda: self._finish_filter("Islem uygulanmadi."))
+                return
 
             if result is not None:
                 self.current_image_matrix = result.astype(np.uint8)
@@ -319,6 +329,7 @@ class App(ctk.CTk):
     def _finish_filter(self, msg):
         self.progress.stop()
         self.progress.set(0)
+        self.btn_apply.configure(state="normal")
         self.display_images()
         self.set_status(msg)
 

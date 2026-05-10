@@ -139,41 +139,15 @@ class ImageProcessor:
     ###### Nisa bulanıklaştırma
     @staticmethod
     def turn_blur(image, kernel_size = 3):
-        
-        #görüntünün kaç satır ve sütundan oluştuğu bilgisini image.shape döndürür.
-        height = image.shape[0]
-        width = image.shape[1]
-
-        #kenar boşluğunu kernel_size // 2 ile oto. hesaplıyoruz. pad=1 çünkü 3x3 pencere için merkez piksel 1 adım uzakta
-        pad = kernel_size // 2
-
-        #sonuç görüntüsü. orijinal görüntüyle aynı boyutta ama içi sıfır
-        output = np.zeros_like(image, dtype=np.float64)
-
-        #görüntü renkli mi (3 kanallı) gri mi (2 boyutlu) kontrolüne göre farklı padding uyguluyoruz
-        if image.ndim == 3:
-            #görüntü renkliyse satır ve sütunlara pad kadar 0 ekliyoruz kanal boyutuna dokunmuyoruz
-            padded = np.pad(image, ((pad, pad), (pad , pad), (0, 0)), mode='constant', constant_values=0)
-        else:
-            #görüntü griyse sadece satır ve sütunlara pad ekliyoruz
-            padded = np.pad(image, ((pad, pad), (pad, pad)), mode='constant', constant_values=0)
-
-        
-        #görüntüyü satır satır geziyoruz
-        for i in range(height):
-            #her satırın her sütununu da tek tek geziyoruz
-            for j in range(width):
-                window = padded[i : i + kernel_size, j : j + kernel_size]
-
-                output[i, j] = np.mean(window, axis=(0, 1))
-
-        return output.astype(np.uint8)
+        return ImageProcessor.mean_filter_manual(image, kernel_size)
     
 
     ######Nisa morfolojik işlemler
     @staticmethod
     #Genişleme
     def turn_dilate(image, kernel_size = 3):
+        if image.ndim == 3:
+            image = ImageProcessor.turn_binary(image)
 
         #görüntünün kaç satır ve sütundan oluştuğu bilgisi
         height = image.shape[0]
@@ -196,6 +170,8 @@ class ImageProcessor:
     #Aşınma
     @staticmethod
     def turn_erode(image, kernel_size = 3):
+        if image.ndim == 3:
+            image = ImageProcessor.turn_binary(image)
 
         #görüntünün kaç satır ve sütundan oluştuğu bilgisi
         height = image.shape[0]
@@ -455,14 +431,12 @@ class ImageProcessor:
                 mode="edge",
             )
 
-            for i in range(height):
-                for j in range(width):
-                    for channel in range(channel_count):
-                        total = 0.0
-                        for ki in range(kernel_size):
-                            for kj in range(kernel_size):
-                                total += padded[i + ki, j + kj, channel]
-                        result[i, j, channel] = total / (kernel_size * kernel_size)
+            for channel in range(channel_count):
+                total = np.zeros((height, width), dtype=np.float64)
+                for ki in range(kernel_size):
+                    for kj in range(kernel_size):
+                        total += padded[ki:ki + height, kj:kj + width, channel]
+                result[:, :, channel] = total / (kernel_size * kernel_size)
         else:
             padded = np.pad(
                 source,
@@ -470,13 +444,11 @@ class ImageProcessor:
                 mode="edge",
             )
 
-            for i in range(height):
-                for j in range(width):
-                    total = 0.0
-                    for ki in range(kernel_size):
-                        for kj in range(kernel_size):
-                            total += padded[i + ki, j + kj]
-                    result[i, j] = total / (kernel_size * kernel_size)
+            total = np.zeros((height, width), dtype=np.float64)
+            for ki in range(kernel_size):
+                for kj in range(kernel_size):
+                    total += padded[ki:ki + height, kj:kj + width]
+            result = total / (kernel_size * kernel_size)
 
         return np.clip(result, 0, 255).astype(np.uint8)
 
@@ -501,6 +473,26 @@ class ImageProcessor:
                 ((pad, pad), (pad, pad), (0, 0)),
                 mode="edge",
             )
+
+            if kernel_size == 3:
+                for channel in range(channel_count):
+                    values = []
+                    for ki in range(kernel_size):
+                        for kj in range(kernel_size):
+                            values.append(padded[ki:ki + height, kj:kj + width, channel].astype(np.float64))
+
+                    for sort_i in range(1, len(values)):
+                        sort_j = sort_i
+                        while sort_j > 0:
+                            lower = np.minimum(values[sort_j - 1], values[sort_j])
+                            upper = np.maximum(values[sort_j - 1], values[sort_j])
+                            values[sort_j - 1] = lower
+                            values[sort_j] = upper
+                            sort_j -= 1
+
+                    result[:, :, channel] = values[len(values) // 2]
+
+                return np.clip(result, 0, 255).astype(np.uint8)
 
             for i in range(height):
                 for j in range(width):
@@ -527,6 +519,23 @@ class ImageProcessor:
                 ((pad, pad), (pad, pad)),
                 mode="edge",
             )
+
+            if kernel_size == 3:
+                values = []
+                for ki in range(kernel_size):
+                    for kj in range(kernel_size):
+                        values.append(padded[ki:ki + height, kj:kj + width].astype(np.float64))
+
+                for sort_i in range(1, len(values)):
+                    sort_j = sort_i
+                    while sort_j > 0:
+                        lower = np.minimum(values[sort_j - 1], values[sort_j])
+                        upper = np.maximum(values[sort_j - 1], values[sort_j])
+                        values[sort_j - 1] = lower
+                        values[sort_j] = upper
+                        sort_j -= 1
+
+                return np.clip(values[len(values) // 2], 0, 255).astype(np.uint8)
 
             for i in range(height):
                 for j in range(width):
