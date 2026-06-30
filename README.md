@@ -1,35 +1,36 @@
-# Görüntü İşleme Projesi
+# Image Processing Project
 
-Python ile hazırlanmış masaüstü görüntü işleme uygulamasıdır. İşlemler hazır görüntü işleme fonksiyonları kullanılmadan, NumPy ve manuel algoritma mantığıyla yazılmıştır.
+A desktop image processing application built with Python. The operations are implemented with NumPy and manual algorithm logic instead of ready-made image processing functions.
 
-## Çalıştırma
+## Usage
 
 ```bash
 python main.py
 ```
 
-## Gerekli Kütüphaneler
+## Dependencies
 
 ```bash
 pip install numpy pillow matplotlib customtkinter
 ```
 
-## Uygulamadaki İşlemler
+## Available Operations
 
-- Gri seviye ve thresholding
-- Kontrast, histogram germe ve histogram eşitleme
-- RGB-HSV ve RGB-YCbCr renk dönüşümleri
-- Görüntü döndürme, zoom ve kırpma
-- Salt & Pepper gürültüsü ekleme
-- Mean, Median ve Motion Blur filtreleri
-- Sobel ve Canny kenar bulma
-- Erosion, Dilation, Opening ve Closing morfolojik işlemleri
-- İki görüntü ile aritmetik işlemler: toplama, çıkarma, çarpma, AND, OR, XOR
-- Adaptif eşikleme ve çift eşikleme
+- Grayscale conversion and thresholding
+- Contrast adjustment, histogram stretching, and histogram equalization
+- RGB-HSV and RGB-YCbCr color conversions
+- Image rotation, zooming, and cropping
+- Salt and pepper noise generation
+- Mean, median, and motion blur filters
+- Sobel and Canny edge detection
+- Morphological operations: erosion, dilation, opening, and closing
+- Arithmetic operations with two images: addition, subtraction, multiplication, AND, OR, XOR
+- Adaptive thresholding and double thresholding
 
-## Dosyalar
+## Files
 
-- `main.py`: Arayüz ve işlem seçimleri
-- `Processor.py`: Görüntü işleme algoritmaları
-- `Image_Capture.py`: Görüntü okuma/gösterme yardımcıları
-- `test.py`: Basit test dosyası
+- `main.py`: User interface and operation selection
+- `Processor.py`: Image processing algorithms
+- `Image_Capture.py`: Image loading and display helpers
+- `test.py`: Simple test file
+
