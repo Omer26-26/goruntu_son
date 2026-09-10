@@ -1,12 +1,11 @@
-import numpy as np 
-import matplotlib.pyplot as plt
+import numpy as np
 
 class ImageProcessor:
 
     def __init__(self):
         
         self.image=None
-    @staticmethod #Babalar bu sınıfla uğraşmadan çağırmak için 
+    @staticmethod
     def turn_gray(image):
         if image.ndim == 2:
             return image
@@ -14,25 +13,25 @@ class ImageProcessor:
         G=image[:,:,1]
         B=image[:,:,2]
 
-        gray=R*0.299+G*0.587+B*0.114 #Ağırlıklı ortalama ile çarptık 
-        gray=gray.astype(np.uint8) #Çıkan sayıyı tek matrise çevir
+        gray=R*0.299+G*0.587+B*0.114  # Weighted luminance conversion
+        gray=gray.astype(np.uint8)
 
         return gray
 
     @staticmethod
-    def turn_binary(image, threshold=127): # OPSİYONEL Arayüzde eşik değeri değişmek için bir argüman daha eklenebilir fonksiyona 
+    def turn_binary(image, threshold=127):
         
         if image.ndim==3: #Önce graye çevir
             image=ImageProcessor.turn_gray(image)
         
-        binary = (image > threshold).astype(np.uint8) * 255 #True False değerlerini 255 ile çarp Matriste elde et
+        binary = (image > threshold).astype(np.uint8) * 255
 
         return binary    
 
     @staticmethod
     def stretch_histogram_manual(image):
         """
-        cv2.equalizeHist YASAK! 
+        Manual histogram stretching without OpenCV helpers.
         Formül: $P_{out} = (P_{in} - min) \times \frac{255}{max - min}$
         """
         # Eğer renkliyse griye çeviriyoruz (çünkü histogram tek kanalda gerilir)
@@ -54,7 +53,7 @@ class ImageProcessor:
     @staticmethod
     def rgb_to_hsv_manual(image):
         """
-        cv2.cvtColor YASAK! Matematiksel HSV dönüşümü.
+        Mathematical HSV conversion without OpenCV color helpers.
         """
         # Görüntüyü 0-1 aralığına çekiyoruz (hesaplama kolaylığı için)
         img = image.astype(np.float32) / 255.0
@@ -93,6 +92,9 @@ class ImageProcessor:
         """
         cv2.resize YASAK! En Yakın Komşu (Nearest Neighbor) algoritması ile manuel boyutlandırma.
         """
+        if scale_factor <= 0:
+            raise ValueError("scale_factor must be greater than zero")
+
         old_h, old_w = image.shape[:2]
         new_h = int(old_h * scale_factor)
         new_w = int(old_w * scale_factor)
@@ -112,7 +114,7 @@ class ImageProcessor:
     @staticmethod
     def get_histogram(image):
         """
-        cv2.calcHist YASAK! Manuel histogram hesaplama.
+        Calculate a histogram without OpenCV histogram helpers.
         """
         if image.ndim == 3:
             image = ImageProcessor.turn_gray(image)
@@ -130,19 +132,21 @@ class ImageProcessor:
     @staticmethod
     def plot_histogram(image, title="Histogram"):
         """Histogramı görselleştirmek için eklenen yardımcı fonksiyon."""
+        import matplotlib.pyplot as plt
+
         hist = ImageProcessor.get_histogram(image)
         plt.figure()
         plt.title(title)
         plt.bar(range(256), hist, color='gray')
         plt.show()
 
-    ###### Nisa bulanıklaştırma
+    # Blurring
     @staticmethod
     def turn_blur(image, kernel_size = 3):
         return ImageProcessor.mean_filter_manual(image, kernel_size)
     
 
-    ######Nisa morfolojik işlemler
+    # Morphological operations
     @staticmethod
     #Genişleme
     def turn_dilate(image, kernel_size = 3):
@@ -202,7 +206,7 @@ class ImageProcessor:
         dilated = ImageProcessor.turn_dilate(image, kernel_size)
         return ImageProcessor.turn_erode(dilated, kernel_size)
 
-    # Yasin - İki resim arasında aritmetik işlemler
+    # Arithmetic operations between two images
     @staticmethod
     def _prepare_arithmetic(image1, image2):
         """İki resmi aynı boyuta ve tipe getirir."""
@@ -238,7 +242,7 @@ class ImageProcessor:
 
     @staticmethod
     def add_images_manual(image1, image2):
-        # Yasin - İki resim arasında aritmetik işlemler: Toplama
+        # Addition with saturation
         img1, img2 = ImageProcessor._prepare_arithmetic(image1, image2)
         result = img1 + img2
         return np.clip(result, 0, 255).astype(np.uint8)
@@ -246,20 +250,20 @@ class ImageProcessor:
 
     @staticmethod
     def multiply_images_manual(image1, image2):
-        # Yasin - İki resim arasında aritmetik işlemler: Çarpma
+        # Normalized multiplication
         img1, img2 = ImageProcessor._prepare_arithmetic(image1, image2)
         result = (img1 * img2) / 255.0
         return np.clip(result, 0, 255).astype(np.uint8)
 
     @staticmethod
     def change_brightness_manual(image, value=30):
-        # Yasin - Parlaklık Arttırma
+        # Brightness adjustment
         res = image.astype(np.float64) + value
         return np.clip(res, 0, 255).astype(np.uint8)
 
     @staticmethod
     def gaussian_blur_manual(image, kernel_size=3, sigma=1.0):
-        # Yasin - Konvolüsyon İşlemi (Gauss Bulanıklaştırma) - Optimize Edilmiş Manuel Versiyon
+        # Gaussian convolution implemented with NumPy operations
         ax = np.linspace(-(kernel_size // 2), kernel_size // 2, kernel_size)
         gauss = np.exp(-0.5 * (ax**2) / (sigma**2))
         kernel = np.outer(gauss, gauss)
@@ -287,7 +291,7 @@ class ImageProcessor:
 
     @staticmethod
     def adaptive_threshold_manual(image, block_size=15, C=5):
-        # Mali - Adaptif eşikleme manuel olarak piksel komşuluk ortalamasıyla uygulanır.
+        # Adaptive thresholding based on the local neighborhood mean
         if block_size % 2 == 0:
             block_size += 1
         if block_size < 3:
@@ -348,7 +352,7 @@ class ImageProcessor:
 
     @staticmethod
     def sobel_edge_manual(image, threshold=None):
-        # Mali - Sobel kenar bulma manuel olarak Gx ve Gy maskeleriyle uygulanır.
+        # Sobel edge detection using manually defined Gx and Gy kernels
         if image.ndim == 3:
             gray = ImageProcessor.turn_gray(image)
         else:
@@ -369,7 +373,7 @@ class ImageProcessor:
 
     @staticmethod
     def add_salt_pepper_noise_manual(image, amount=0.05, seed=None):
-        # Mali - Salt & Pepper gürültüsü manuel olarak rastgele pikseller 0 veya 255 yapılarak eklenir.
+        # Salt-and-pepper noise with an optional deterministic seed
         amount = max(0.0, min(1.0, amount))
         noisy = image.copy()
         rng = np.random.default_rng(seed)
@@ -398,7 +402,7 @@ class ImageProcessor:
 
     @staticmethod
     def mean_filter_manual(image, kernel_size=3):
-        # Mali - Mean filtre manuel olarak komşuluk penceresindeki piksel ortalamasıyla uygulanır.
+        # Mean filter based on neighborhood averages
         if kernel_size < 3:
             kernel_size = 3
         if kernel_size % 2 == 0:
@@ -442,7 +446,7 @@ class ImageProcessor:
 
     @staticmethod
     def median_filter_manual(image, kernel_size=3):
-        # Mali - Median filtre manuel olarak komşuluk değerleri sıralanıp ortanca değer alınarak uygulanır.
+        # Median filter based on explicitly sorted neighborhood values
         if kernel_size < 3:
             kernel_size = 3
         if kernel_size % 2 == 0:
@@ -548,29 +552,6 @@ class ImageProcessor:
 
 
     @staticmethod
-    def rgb_to_hsv_manual(image):
-        if image.ndim == 2:
-            return image
-        img = image.astype(np.float32) / 255.0
-        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
-        v = np.max(img, axis=2)
-        m = np.min(img, axis=2)
-        diff = v - m
-        s = np.zeros_like(v)
-        s[v != 0] = diff[v != 0] / v[v != 0]
-        h = np.zeros_like(v)
-        idx = (v == r) & (diff != 0)
-        h[idx] = (60 * ((g[idx] - b[idx]) / diff[idx]) + 360) % 360
-        idx = (v == g) & (diff != 0)
-        h[idx] = (60 * ((b[idx] - r[idx]) / diff[idx]) + 120) % 360
-        idx = (v == b) & (diff != 0)
-        h[idx] = (60 * ((r[idx] - g[idx]) / diff[idx]) + 240) % 360
-        h_final = (h / 2).astype(np.uint8)
-        s_final = (s * 255).astype(np.uint8)
-        v_final = (v * 255).astype(np.uint8)
-        return np.stack([h_final, s_final, v_final], axis=2)
-
-    @staticmethod
     def subtract_images_manual(image1, image2):
         # İki resim arasında aritmetik işlemler: Çıkarma
         img1, img2 = ImageProcessor._prepare_arithmetic(image1, image2)
@@ -670,14 +651,15 @@ class ImageProcessor:
             gray = image.copy()
             
         hist = ImageProcessor.get_histogram(gray)
-        cdf = hist.cumsum() # Birikimli dağılım fonksiyonu
-        
-        # CDF normalizasyonu (0-255 arasına çekme)
-        cdf_m = np.ma.masked_equal(cdf, 0)
-        cdf_m = (cdf_m - cdf_m.min()) * 255 / (cdf_m.max() - cdf_m.min())
-        cdf = np.ma.filled(cdf_m, 0).astype('uint8')
-        
-        return cdf[gray]
+        cdf = hist.cumsum()
+        populated = cdf[cdf > 0]
+        if populated.size == 0 or populated[0] == populated[-1]:
+            return gray.copy()
+
+        normalized = (cdf - populated[0]) * 255 / (populated[-1] - populated[0])
+        normalized = np.clip(normalized, 0, 255).astype(np.uint8)
+
+        return normalized[gray]
 
     @staticmethod
     def canny_edge_manual(image, low=50, high=150):
@@ -719,35 +701,37 @@ class ImageProcessor:
         return res
 
 
-# --- Test Amaçlı Yardımcı Fonksiyonlar (Arayüzde kullanmayın) ---
+# OpenCV interoperability helpers
 def bgr_to_rgb(image):
-    return image[:, :, ::-1]  # BGR'I RGB'ye çeviren tersleme işlemim
+    return image[:, :, ::-1]
 
 
 def rgb_to_bgr(image):
-    return image[:, :, ::-1]  # Yukarıdakinin tersi daa
+    return image[:, :, ::-1]
 
 
 def load_image_cv2(path):
     import cv2
-    image = cv2.imread(path)  # Yoldaki görseli okudu, OpenCV olduğu için BGR şeklinde çıktı verdi
-    image = bgr_to_rgb(image)  # BGR'yi RGB
-    return image
+    image = cv2.imread(str(path))
+    if image is None:
+        raise FileNotFoundError(f"Unable to read image: {path}")
+    return bgr_to_rgb(image)
 
 
 def save_to_image_cv2(image, path):
     import cv2
-    output_image = rgb_to_bgr(image)  # Saklamak için bgr'ye çevir
-    cv2.imwrite(path, output_image)
+    output_image = rgb_to_bgr(image)
+    if not cv2.imwrite(str(path), output_image):
+        raise OSError(f"Unable to write image: {path}")
 
 
 def show_image_cv2(image, title="Resim"):
     import cv2
     if image.ndim == 3:
-        display_image = rgb_to_bgr(image)  # İMSHOW BGR ÜZERİNDE İŞLEM YAPAR
+        display_image = rgb_to_bgr(image)
     else:
         display_image = image
 
     cv2.imshow(title, display_image)
-    cv2.waitKey(0)  # Tuşa basana kadar bekler
-    cv2.destroyAllWindows()  # Tuşa basınca kapar
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

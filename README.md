@@ -5,14 +5,13 @@ A desktop image processing application built with Python. The operations are imp
 ## Usage
 
 ```bash
+pip install -r requirements.txt
 python main.py
 ```
 
 ## Dependencies
 
-```bash
-pip install numpy pillow matplotlib customtkinter
-```
+Runtime and test dependencies are version-bounded in [`requirements.txt`](requirements.txt).
 
 ## Available Operations
 
@@ -32,5 +31,17 @@ pip install numpy pillow matplotlib customtkinter
 - `main.py`: User interface and operation selection
 - `Processor.py`: Image processing algorithms
 - `Image_Capture.py`: Image loading and display helpers
-- `test.py`: Simple test file
+- `tests/`: Deterministic pytest unit tests for algorithms and file I/O
+
+## Tests
+
+```bash
+python -m pytest tests --verbose
+```
+
+The tests generate NumPy arrays and temporary files, so they do not depend on personal file paths or sample images.
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
 

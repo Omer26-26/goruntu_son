@@ -1,35 +1,30 @@
-import numpy as np
 import cv2
-from Processor import ImageProcessor  # ImageProcessor sınıfının olduğu dosya adı
 
 def bgr_to_rgb(image):
-    return image[:, :, ::-1] #BGR'I RGB'ye çeviren tersleme işlemim
+    """Convert an OpenCV BGR image to RGB."""
+    return image[:, :, ::-1]
 
 def rgb_to_bgr(image):
-    return image[:, :, ::-1] #Yukarıdakinin tersi daa
+    """Convert an RGB image to OpenCV BGR."""
+    return image[:, :, ::-1]
 
 def load_image(path):
+    """Load an image from any path-like object and return RGB data."""
+    image = cv2.imread(str(path))
+    if image is None:
+        raise FileNotFoundError(f"Unable to read image: {path}")
+    return bgr_to_rgb(image)
 
-    image=cv2.imread(path) #Yoldaki görseli okudu , OpenCV olduğu için BGR şeklinde çıktı verdi
-    image=bgr_to_rgb(image)  # BGR'yi RGB 
-    return image
+def save_to_image(image, path):
+    """Save RGB image data to disk."""
+    output_image = rgb_to_bgr(image)
+    if not cv2.imwrite(str(path), output_image):
+        raise OSError(f"Unable to write image: {path}")
 
-def save_to_image(image,path):
+def show_image(image, title="Image"):
+    """Display an image in an OpenCV window until a key is pressed."""
 
-    output_image=rgb_to_bgr(image) #Saklamak için bgr'ye çevircen ömer çünkü imwrite bgr ye göre işlem yapıyor
-    image=cv2.imwrite(path,output_image) #okudu çıktısı true false 
-    pass
-
-def show_image(image,title="Resim"):  
-
-    if image.ndim==3:
-        image=rgb_to_bgr(image) #İMSHOW BGR ÜZERİNDE İŞLEM YAPAR MALİ
-        display_image=image
-
-    else : 
-        display_image=image # 3 kanallı değilse ya binary ya gray dönüşüme gerek yok
-   
-    cv2.imshow(title,display_image)
-    #Bunları yazdığınız fonksiyonları denemek amaçlı kullanın 
-    cv2.waitKey(0) # Tuşa basana kadar bekler
-    cv2.destroyAllWindows() # Tuşa basınca kapar
+    display_image = rgb_to_bgr(image) if image.ndim == 3 else image
+    cv2.imshow(title, display_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
